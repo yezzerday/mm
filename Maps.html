@@ -1,0 +1,110 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Maps</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.10.0/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.10.0/mapbox-gl.css" rel="stylesheet" />
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        .search-container { position: absolute; top: 10px; left: 10px; background: white; padding: 5px; border-radius: 3px; }
+        .search-container input { width: 200px; }
+        .search-container button { margin-left: 5px; }
+        .dropdown-container { position: absolute; top: 35px; left: 10px; background: white; border-radius: 3px; box-shadow: 0px 0px 5px rgba(0,0,0,0.3); display: none; }
+        .dropdown-container div { padding: 5px; cursor: pointer; }
+        .dropdown-container div:hover { background: #eee; }
+    </style>
+</head>
+<body>
+    <div class="search-container">
+        <input type="text" id="search-input" placeholder="Search places" />
+        <button id="search-button">Search</button>
+        <button id="clear-button">Clear</button>
+    </div>
+    <div class="dropdown-container" id="dropdown"></div>
+    <div id="map"></div>
+    <script>
+        // ตั้งค่า Mapbox Access Token ของคุณ
+        mapboxgl.accessToken = 'pk.eyJ1IjoiamFydWRhIiwiYSI6ImNtMDc5ZXViMDEzNGkya3NicGZzaGI1ZncifQ.N2tDCng_RYc0uCAymQ-LdA';
+
+        var map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v11',
+            center: [100.192, 16.748],
+            zoom: 15
+        });
+
+        // เพิ่มการควบคุมการนำทาง (zoom, pan) บนแผนที่
+        map.addControl(new mapboxgl.NavigationControl());
+
+        // ฟังก์ชันค้นหาสถานที่
+        document.getElementById('search-button').addEventListener('click', function() {
+            var query = document.getElementById('search-input').value;
+            var url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    var features = data.features;
+                    var dropdown = document.getElementById('dropdown');
+                    dropdown.innerHTML = ''; // Clear previous results
+                    if (features.length > 0) {
+                        dropdown.style.display = 'block'; // Show dropdown
+                        features.forEach(feature => {
+                            var div = document.createElement('div');
+                            div.textContent = feature.text;
+                            div.addEventListener('click', function() {
+                                var coordinates = feature.geometry.coordinates;
+                                var placeName = feature.text;
+
+                                // ลบพินทั้งหมด
+                                var markers = document.querySelectorAll('.mapboxgl-marker');
+                                markers.forEach(marker => marker.remove());
+
+                                // เพิ่มพินใหม่
+                                new mapboxgl.Marker()
+                                    .setLngLat(coordinates)
+                                    .setPopup(new mapboxgl.Popup().setHTML(`<h3>${placeName}</h3><button onclick="sendToUnity('${placeName}')">Select</button>`))
+                                    .addTo(map);
+
+                                // ซูมไปที่พิกัดที่ค้นพบ
+                                map.flyTo({ center: coordinates, zoom: 15 });
+
+                                // ซ่อน dropdown หลังการเลือก
+                                dropdown.style.display = 'none';
+                            });
+                            dropdown.appendChild(div);
+                        });
+                    } else {
+                        dropdown.style.display = 'none'; // Hide dropdown if no results
+                    }
+                });
+        });
+
+        // ฟังก์ชันลบพินทั้งหมด
+        document.getElementById('clear-button').addEventListener('click', function() {
+            var markers = document.querySelectorAll('.mapboxgl-marker');
+            markers.forEach(marker => marker.remove());
+            document.getElementById('search-input').value = ''; // Clear input field
+            document.getElementById('dropdown').style.display = 'none'; // Hide dropdown
+        });
+
+        // ฟังก์ชันส่งข้อมูลไปยัง Unity
+        function sendToUnity(placeName) {
+            // ส่งข้อมูลไปยัง Unity โดยใช้ WebView
+            if (window.Unity && window.Unity.call) {
+                window.Unity.call(placeName); // `Unity.call` คือตัวอย่างที่ใช้ใน WebView เพื่อส่งข้อมูล
+            }
+        }
+
+        // ปิด dropdown เมื่อคลิกที่อื่น
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.search-container')) {
+                document.getElementById('dropdown').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
